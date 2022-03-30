@@ -78,7 +78,7 @@ pub fn parse_args() -> NucGrepResult<Config> {
         .version("0.0.1")
         .about(
             "Find sequences in sequences.\n\
-    By default, look for PATTERN in each line of FILE. If no file is specified, use STDIN.\n\n\t -- under construction --",
+   By default, look for PATTERN in each fasta record in FILE. If no file is specified, use STDIN.\n\n\t -- under construction --",
         )
         //.arg(
         //    Arg::new("fasta")
