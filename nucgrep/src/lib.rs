@@ -27,22 +27,26 @@ pub fn search(buff: impl BufRead) -> NucGrepResult<()> {
     Ok(())
 }
 
-pub fn search_fasta_stdin(needle: &String, headers_only: bool) -> NucGrepResult<()> {
+pub fn search_fasta_stdin(needle: &Vec<String>, headers_only: bool) -> NucGrepResult<()> {
     let mut reader = Reader::new(io::stdin());
+   // let mut needles = needle.clone();
     while let Some(result) = reader.next() {
+        let mut needles = needle.clone();
         let tmp = result?.clone();
         let fullseq = tmp.seq().iter().map(|&x| x as char).collect::<String>();
-        if fullseq.contains(&*needle.clone()) {
-            println!(
-                ">{}{}",
-                green(tmp.id().expect("There was a problem with the sequence ID")),
-                if !headers_only {
-                    format!("\n{}", fullseq)
-                } else {
-                    "".to_string()
-                }
-            );
-        } else {
+        while let Some(single_pattern) = needles.pop() {
+            if fullseq.contains(&*single_pattern) {
+                println!(
+                    ">{}{}",
+                    green(tmp.id().expect("There was a problem with the sequence ID")),
+                    if !headers_only {
+                        format!("\n{}", fullseq)
+                    } else {
+                        "".to_string()
+                    }
+                );
+            } else {
+            }
         }
     }
     Ok(())
@@ -54,12 +58,20 @@ pub fn green(s: &str) -> ColoredString {
 
 pub fn run(config: Config) -> NucGrepResult<()> {
     //println!("{:#?}", config);
-    let search_pattern = match config.reverse_complement {
-        true => reverse_complement(&config.needle, None)?, //todo rna/dna
-        _ => config.needle,
-    };
+    let mut search_patterns: Vec<String> = Vec::new();
+    if config.reverse_complement {
+        search_patterns.push(reverse_complement(&config.needle, None)?);
+    }
+    if !config.only_reverse_complement {
+        search_patterns.push(config.needle.clone());
+    }
+    //let search_pattern= match config.only_reverse_complement {
+    //    true => reverse_complement(&config.needle, None)?, //todo rna/dna
+    //    _ => config.needle,
+    //};
     if config.file == "-" {
-        search_fasta_stdin(&search_pattern, config.headers_only)?; //todo refactor
+        //println!("{:?}",search_patterns.clone());
+        search_fasta_stdin(&search_patterns, config.headers_only)?; //todo refactor
     } else {
         let reader = open(&config.file);
         match reader {
@@ -123,7 +135,7 @@ pub fn parse_args() -> NucGrepResult<Config> {
         )
         .arg(
             Arg::new("only_reverse_complement")
-                .long("only-reverse-complement")
+                .long("reverse-complement-only")
                 .short('R')
                 .help("Show only matches for the reverse complement of PATTERN")
                 .takes_value(false),
@@ -140,7 +152,8 @@ pub fn parse_args() -> NucGrepResult<Config> {
         fasta: true, //matches.is_present("fasta"),
         needle: matches.value_of("needle").map(String::from).unwrap(),
         file: matches.value_of_lossy("path").map(String::from).unwrap(),
-        reverse_complement: matches.is_present("reverse_complement"),
+        reverse_complement: matches.is_present("reverse_complement")
+            || matches.is_present("only_reverse_complement"),
         only_reverse_complement: matches.is_present("only_reverse_complement"),
         allow_non_matching: matches
             .value_of("allow_non_matching")
@@ -336,7 +349,7 @@ mod tests {
         let expected = Err(NucleotideComplementError);
         assert_eq!(reverse_complement(&input, None), expected);
     }
-     #[test]
+    #[test]
     pub fn test_revcomp_fail_rna_dna() {
         let input = "atgcu";
         let expected = Err(NucleotideComplementError);

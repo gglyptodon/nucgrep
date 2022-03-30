@@ -13,10 +13,16 @@ const FASTA_INVALID: &str = "tests/inputs/invalid.fa";
 const FASTA_ONE_RECORD_PER_LINE: &str = "tests/inputs/fasta_one_record_per_line.fa";
 const FASTA_WITH_LINEBREAKS: &str = "tests/inputs/fasta_with_line_breaks.fa";
 const FASTA_ONE_RECORD_PER_LINE_MC: &str = "tests/inputs/fasta_one_record_per_line_mc.fa"; //mixed case
+const FASTA_REV_ORIG: &str = "tests/inputs/rev_orig.fa";
 
-const FASTA_ONE_RECORD_PER_LINE_OUT: &str = "tests/inputs/fasta_one_record_per_line.fa.out";
-const FASTA_WITH_LINEBREAKS_OUT: &str = "tests/inputs/fasta_with_line_breaks.fa.out";
-const FASTA_ONE_RECORD_PER_LINE_MC_OUT: &str = "tests/inputs/fasta_one_record_per_line_mc.fa.out"; //mixed case
+const FASTA_ONE_RECORD_PER_LINE_OUT: &str = "tests/expected/fasta_one_record_per_line.fa.out";
+const FASTA_WITH_LINEBREAKS_OUT: &str = "tests/expected/fasta_with_line_breaks.fa.out";
+const FASTA_ONE_RECORD_PER_LINE_MC_OUT: &str = "tests/expected/fasta_one_record_per_line_mc.fa.out"; //mixed case
+
+const FASTA_REV_ORIG_OUT: &str = "tests/expected/rev_orig.fa.out";
+const FASTA_REV_OUT: &str = "tests/expected/rev.fa.out";
+const FASTA_ORIG_OUT: &str = "tests/expected/orig.fa.out";
+
 
 const PATTERN_FOUND_ALL_UPPER: &str = "TACGGCCT";
 const PATTERN_FOUND_MC: &str = "TCGTgtgCAG";
@@ -183,6 +189,31 @@ fn simple_headers_only_reverse_complement_stdin() -> TestResult {
         "tests/expected/simple.fa.headers_only_reverse_complement.out",
     )
 }
+#[test]
+fn simple_reverse_complement_only_stdin() -> TestResult {
+    run_stdin(
+        &["--pattern", "GTAGTAGTAG", "--reverse-complement-only"],
+        FASTA_REV_ORIG,
+        FASTA_REV_OUT,
+    )
+}
+#[test]
+fn simple_reverse_complement_and_orig_stdin() -> TestResult {
+    run_stdin(
+        &["--pattern", "GTAGTAGTAG", "-r"],
+        FASTA_REV_ORIG,
+        FASTA_REV_ORIG_OUT,
+    )
+}
+#[test]
+fn simple_orig_stdin() -> TestResult {
+    run_stdin(
+        &["--pattern", "GTAGTAGTAG"],
+        FASTA_REV_ORIG,
+        FASTA_ORIG_OUT,
+    )
+}
+
 /* #[test]
 fn simple_reverse_complement() -> TestResult {
     run(
