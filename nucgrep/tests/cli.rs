@@ -23,7 +23,6 @@ const FASTA_REV_ORIG_OUT: &str = "tests/expected/rev_orig.fa.out";
 const FASTA_REV_OUT: &str = "tests/expected/rev.fa.out";
 const FASTA_ORIG_OUT: &str = "tests/expected/orig.fa.out";
 
-
 const PATTERN_FOUND_ALL_UPPER: &str = "TACGGCCT";
 const PATTERN_FOUND_MC: &str = "TCGTgtgCAG";
 const PATTERN_FOUND_MC_ACROSS_LINEBREAK: &str = "TACGGCCT";
@@ -207,11 +206,7 @@ fn simple_reverse_complement_and_orig_stdin() -> TestResult {
 }
 #[test]
 fn simple_orig_stdin() -> TestResult {
-    run_stdin(
-        &["--pattern", "GTAGTAGTAG"],
-        FASTA_REV_ORIG,
-        FASTA_ORIG_OUT,
-    )
+    run_stdin(&["--pattern", "GTAGTAGTAG"], FASTA_REV_ORIG, FASTA_ORIG_OUT)
 }
 
 /* #[test]

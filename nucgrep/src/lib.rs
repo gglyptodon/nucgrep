@@ -27,15 +27,22 @@ pub fn search(buff: impl BufRead) -> NucGrepResult<()> {
     Ok(())
 }
 
-pub fn search_fasta_stdin(needle: &Vec<String>, headers_only: bool) -> NucGrepResult<()> {
+pub fn search_fasta_stdin(
+    needle: &String,
+    headers_only: bool,
+    search_reverse_complement: bool,
+    only_reverse_complement: bool,
+) -> NucGrepResult<()> {
     let mut reader = Reader::new(io::stdin());
-   // let mut needles = needle.clone();
+    let reverse_complement_needle: Option<String> = match search_reverse_complement {
+        true => Some(reverse_complement(&needle, None)?),
+        false => None,
+    };
     while let Some(result) = reader.next() {
-        let mut needles = needle.clone();
         let tmp = result?.clone();
         let fullseq = tmp.seq().iter().map(|&x| x as char).collect::<String>();
-        while let Some(single_pattern) = needles.pop() {
-            if fullseq.contains(&*single_pattern) {
+        if !only_reverse_complement {
+            if fullseq.contains(&*needle) {
                 println!(
                     ">{}{}",
                     green(tmp.id().expect("There was a problem with the sequence ID")),
@@ -45,8 +52,24 @@ pub fn search_fasta_stdin(needle: &Vec<String>, headers_only: bool) -> NucGrepRe
                         "".to_string()
                     }
                 );
-            } else {
             }
+        }
+        match reverse_complement_needle {
+            //also look for revcomp
+            Some(ref p) => {
+                if fullseq.contains(&*p) {
+                    println!(
+                        ">{}{}",
+                        green(tmp.id().expect("There was a problem with the sequence ID")),
+                        if !headers_only {
+                            format!("\n{}", fullseq)
+                        } else {
+                            "".to_string()
+                        }
+                    );
+                }
+            }
+            None => {}
         }
     }
     Ok(())
@@ -65,13 +88,13 @@ pub fn run(config: Config) -> NucGrepResult<()> {
     if !config.only_reverse_complement {
         search_patterns.push(config.needle.clone());
     }
-    //let search_pattern= match config.only_reverse_complement {
-    //    true => reverse_complement(&config.needle, None)?, //todo rna/dna
-    //    _ => config.needle,
-    //};
     if config.file == "-" {
-        //println!("{:?}",search_patterns.clone());
-        search_fasta_stdin(&search_patterns, config.headers_only)?; //todo refactor
+        search_fasta_stdin(
+            &config.needle,
+            config.headers_only,
+            config.reverse_complement,
+            config.only_reverse_complement,
+        )?; //todo refactor
     } else {
         let reader = open(&config.file);
         match reader {
@@ -92,13 +115,6 @@ pub fn parse_args() -> NucGrepResult<Config> {
             "Find sequences in sequences.\n\
    By default, look for PATTERN in each fasta record in FILE. If no file is specified, use STDIN.\n\n\t -- under construction --",
         )
-        //.arg(
-        //    Arg::new("fasta")
-        //        .short('f')
-        //        .long("fasta")
-        //        .takes_value(false)
-         //       .help("Use fasta format records instead of lines"),
-        //)
         .arg(
             Arg::new("needle")
                 .short('p')
@@ -355,13 +371,13 @@ mod tests {
         let expected = Err(NucleotideComplementError);
         assert_eq!(reverse_complement(&input, None), expected);
     }
-     #[test]
+    #[test]
     pub fn test_revcomp_default_to_dna() {
         let input = "aAaAAAA";
         let expected = "TTTTtTt";
         assert_eq!(reverse_complement(&input, None).unwrap(), expected);
     }
-     #[test]
+    #[test]
     pub fn test_revcomp_force_to_rna() {
         let input = "aAaAAAA";
         let expected = "UUUUuUu";
