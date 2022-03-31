@@ -355,4 +355,16 @@ mod tests {
         let expected = Err(NucleotideComplementError);
         assert_eq!(reverse_complement(&input, None), expected);
     }
+     #[test]
+    pub fn test_revcomp_default_to_dna() {
+        let input = "aAaAAAA";
+        let expected = "TTTTtTt";
+        assert_eq!(reverse_complement(&input, None).unwrap(), expected);
+    }
+     #[test]
+    pub fn test_revcomp_force_to_rna() {
+        let input = "aAaAAAA";
+        let expected = "UUUUuUu";
+        assert_eq!(reverse_complement(&input, Some(false)).unwrap(), expected);
+    }
 }
