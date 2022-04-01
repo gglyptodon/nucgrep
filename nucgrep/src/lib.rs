@@ -2,7 +2,9 @@ extern crate core;
 
 use clap::{Arg, Command};
 use colored::{ColoredString, Colorize};
+use regex::{Regex, RegexBuilder};
 use seq_io::fasta::{Reader, Record};
+use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::fs::File;
@@ -27,49 +29,67 @@ pub fn search(buff: impl BufRead) -> NucGrepResult<()> {
     Ok(())
 }
 
+#[derive(Debug)]
+struct NucGrepMatch {
+    start: usize,
+    end: usize,
+    found: String,
+}
+
 pub fn search_fasta_stdin(
-    needle: &String,
+    config: &Config,
+    needle: &Regex,
     headers_only: bool,
-    search_reverse_complement: bool,
-    only_reverse_complement: bool,
+    search_reverse_complement: bool, //todo rm
+    only_reverse_complement: bool,   //todo rm
 ) -> NucGrepResult<()> {
     let mut reader = Reader::new(io::stdin());
-    let reverse_complement_needle: Option<String> = match search_reverse_complement {
-        true => Some(reverse_complement(&needle, None)?),
-        false => None,
-    };
+
     while let Some(result) = reader.next() {
         let tmp = result?.clone();
-        let fullseq = tmp.seq().iter().map(|&x| x as char).collect::<String>();
-        if !only_reverse_complement {
-            if fullseq.contains(&*needle) {
-                println!(
-                    ">{}{}",
-                    green(tmp.id().expect("There was a problem with the sequence ID")),
-                    if !headers_only {
-                        format!("\n{}", fullseq)
-                    } else {
-                        "".to_string()
-                    }
-                );
-            }
+        let fullseq = tmp
+            .seq()
+            .iter()
+            .map(|&x| x as char)
+            .filter(|c| !c.is_whitespace())
+            .collect::<String>();
+        let mut display_seq = fullseq.clone();
+        let mut nmatches: Vec<NucGrepMatch> = Vec::new();
+        let mut found = HashSet::new();
+        for i in needle.find_iter(&*fullseq) {
+            nmatches.push(NucGrepMatch {
+                start: i.start(),
+                end: i.end(),
+                found: String::from(i.as_str()),
+            });
+            found.insert(String::from(i.as_str()));
+
         }
-        match reverse_complement_needle {
-            //also look for revcomp
-            Some(ref p) => {
-                if fullseq.contains(&*p) {
-                    println!(
-                        ">{}{}",
-                        green(tmp.id().expect("There was a problem with the sequence ID")),
-                        if !headers_only {
-                            format!("\n{}", fullseq)
-                        } else {
-                            "".to_string()
-                        }
-                    );
+        let all_found = found.iter().map(String::from).collect::<Vec<String>>();
+        let mut offset: usize = 0;
+
+        let mut positions: Vec<usize> = Vec::new();
+        let mut result = String::from("");
+        for m in &nmatches {
+            let l = m.end - m.start;
+            result.push_str(&*format!(
+                "{}{}",
+                &display_seq[offset..m.start],
+                if &fullseq[m.start..m.end] == config.needle {
+                    fullseq[m.start..m.end].color("green")
+                } else {
+                    fullseq[m.start..m.end].color("purple")
                 }
+            ));
+            offset = m.start + l;
+        }
+        result.push_str(&fullseq[offset..]);
+        if !nmatches.is_empty() {
+            println!(">{}", tmp.id()?);
+            if !config.headers_only {
+                println!("{}", result);
+            } else {
             }
-            None => {}
         }
     }
     Ok(())
@@ -89,8 +109,35 @@ pub fn run(config: Config) -> NucGrepResult<()> {
         search_patterns.push(config.needle.clone());
     }
     if config.file == "-" {
+        let pattern = match config.reverse_complement {
+            true => {
+                format!(
+                    r"{}{}",
+                    reverse_complement(&config.needle, None)?,
+                    if !config.only_reverse_complement {
+                        format!("|{}", config.needle)
+                    } else {
+                        "".to_string()
+                    }
+                )
+            }
+            false => config.needle.clone(),
+        };
+        ///println!("DEBUG: pattern:\t{}", pattern);
+        //let revcomp = reverse_complement(&config.needle, None)?;
+        let needle_regex = match config.ignore_case {
+            true => RegexBuilder::new(&*pattern) //&*config.needle)
+                .case_insensitive(true)
+                .build()
+                .expect("Invalid Regex"),
+            false => RegexBuilder::new(&*pattern) //config.needle)
+                .case_insensitive(false)
+                .build()
+                .expect("Invalid Regex"),
+        };
         search_fasta_stdin(
-            &config.needle,
+            &config,
+            &needle_regex,
             config.headers_only,
             config.reverse_complement,
             config.only_reverse_complement,
