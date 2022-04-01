@@ -63,7 +63,6 @@ pub fn search_fasta_stdin(
                 found: String::from(i.as_str()),
             });
             found.insert(String::from(i.as_str()));
-
         }
         let all_found = found.iter().map(String::from).collect::<Vec<String>>();
         let mut offset: usize = 0;
@@ -75,7 +74,7 @@ pub fn search_fasta_stdin(
             result.push_str(&*format!(
                 "{}{}",
                 &display_seq[offset..m.start],
-                if &fullseq[m.start..m.end] == config.needle {
+                if &fullseq[m.start..m.end].to_uppercase() == &config.needle.to_uppercase() {
                     fullseq[m.start..m.end].color("green")
                 } else {
                     fullseq[m.start..m.end].color("purple")
