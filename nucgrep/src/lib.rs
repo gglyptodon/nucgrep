@@ -75,9 +75,9 @@ pub fn search_fasta_stdin(
                 "{}{}",
                 &display_seq[offset..m.start],
                 if &fullseq[m.start..m.end].to_uppercase() == &config.needle.to_uppercase() {
-                    fullseq[m.start..m.end].color("green")
+                    fullseq[m.start..m.end].color("green").bold()
                 } else {
-                    fullseq[m.start..m.end].color("purple")
+                    fullseq[m.start..m.end].color("purple").bold()
                 }
             ));
             offset = m.start + l;
