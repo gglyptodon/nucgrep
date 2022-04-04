@@ -49,6 +49,20 @@ pub fn search_fasta<T: std::io::Read>(
             .map(|&x| x as char)
             .filter(|c| !c.is_whitespace())
             .collect::<String>();
+        // fuzzy matching  //
+        if config.allow_non_matching > 0{
+            println!("allow {} nonmatching. pattern: {}", config.allow_non_matching, config.needle);
+            let windows_size = config.needle.len();
+            let search:Vec<u8> = config.needle.chars().map(|c| c as u8).collect();
+            for w in tmp.clone().full_seq().windows(windows_size){ //todo
+                if generic_levenshtein::distance(w, &search[..]) <= config.allow_non_matching{
+                    println!("MATCH {:?}", w.iter().map(|&c|c as char).collect::<String>());
+                }
+            }
+
+        }
+
+        // --- //
         let mut display_seq = fullseq.clone();
         let mut nmatches: Vec<NucGrepMatch> = Vec::new();
         let mut found = HashSet::new();
@@ -414,5 +428,20 @@ mod tests {
         let input = "aAaAAAA";
         let expected = "UUUUuUu";
         assert_eq!(reverse_complement(&input, Some(false)).unwrap(), expected);
+    }
+
+    #[test]
+    pub fn lev(){
+        let input = "atgcta";
+        let needle = "tcta";
+        let n:Vec<char> = needle.chars().collect();
+        let tmp = input.chars().collect::<Vec<char>>();
+        for t in tmp.windows(needle.len()){
+            let dist =generic_levenshtein::distance(t,&n ) ;
+            if dist < 2{
+                println!("{:?} matches {:?}", &t, &n);
+            }
+        }
+        assert_eq!("a","b");//fail on purpose for debugging
     }
 }
