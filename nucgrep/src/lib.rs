@@ -51,14 +51,22 @@ pub fn search_fasta<T: std::io::Read>(
             .collect::<String>();
         // fuzzy matching  //
         if config.allow_non_matching > 0{
-            println!("allow {} nonmatching. pattern: {}", config.allow_non_matching, config.needle);
+            println!("Under construction!\nallow {} nonmatching. pattern: {}", config.allow_non_matching, config.needle);
             let windows_size = config.needle.len();
             let search:Vec<u8> = config.needle.chars().map(|c| c as u8).collect();
+            let mut was_found = false;
             for w in tmp.clone().full_seq().windows(windows_size){ //todo
                 if generic_levenshtein::distance(w, &search[..]) <= config.allow_non_matching{
-                    println!("MATCH {:?}", w.iter().map(|&c|c as char).collect::<String>());
+                    was_found = true;
+                    println!("\t{}\nMATCH\t{}", search.iter().map(|&c|c as char).collect::<String>(), w.iter().map(|&c|c as char).collect::<String>());
+                    println!(">{}\n{}", tmp.id()?, highlight_match(&fullseq,&w.iter().map(|&c|c as char).collect::<String>() )?);
+
                 }
             }
+            if was_found{
+               // println!(">{}", tmp.id()?);
+                //println!("{}", highlight_match(fullseq, ))
+            }//todo
 
         }
 
@@ -249,6 +257,45 @@ impl Display for NucleotideComplementError {
         write!(f, "invalid nucleotide")
     }
 }
+
+pub fn highlight_match(haystack:&str, needle:&str)->NucGrepResult<String>{
+    //let result = String::new();
+    let needle_regex = RegexBuilder::new(needle).case_insensitive(true).build()?;
+    let mut display_seq = haystack.clone();
+
+    let mut nmatches: Vec<NucGrepMatch> = Vec::new();
+
+    let mut found = HashSet::new();
+
+    for i in needle_regex.find_iter(&haystack) {
+        nmatches.push(NucGrepMatch {
+            start: i.start(),
+            end: i.end(),
+            found: String::from(i.as_str()),
+        });
+        found.insert(String::from(i.as_str()));
+    }
+    let mut offset: usize = 0;
+    let mut result = String::from("");
+    for m in &nmatches {
+        let l = m.end - m.start;
+        result.push_str(&*format!(
+            "{}{}",
+            &display_seq[offset..m.start],
+            if &haystack[m.start..m.end].to_uppercase() == &needle.to_uppercase() {
+                haystack[m.start..m.end].color("blue").bold()
+            } else {
+                haystack[m.start..m.end].color("orange").bold()
+            }
+        ));
+        offset = m.start + l;
+    }
+    result.push_str(&haystack[offset..]);
+
+
+    Ok(result)
+}
+
 
 impl Error for NucleotideComplementError {}
 
@@ -442,6 +489,6 @@ mod tests {
                 println!("{:?} matches {:?}", &t, &n);
             }
         }
-        assert_eq!("a","b");//fail on purpose for debugging
+      //  assert_eq!("a","b");//fail on purpose for debugging
     }
 }

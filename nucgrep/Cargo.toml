@@ -10,6 +10,7 @@ clap = "3"
 seq_io = "0.3"
 colored = "2"
 regex = "1.5"
+generic_levenshtein = "0.2"
 
 [dev-dependencies]
 assert_cmd = "2"
