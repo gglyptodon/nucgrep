@@ -55,17 +55,22 @@ pub fn search_fasta<T: std::io::Read>(
             let windows_size = config.needle.len();
             let search:Vec<u8> = config.needle.chars().map(|c| c as u8).collect();
             let mut was_found = false;
+            let mut foundpatterns:Vec<String> = Vec::new();
+            // vec of found patterns -> new regex highlight(fullseq,newregex)
             for w in tmp.clone().full_seq().windows(windows_size){ //todo
                 if generic_levenshtein::distance(w, &search[..]) <= config.allow_non_matching{
                     was_found = true;
-                    println!("\t{}\nMATCH\t{}", search.iter().map(|&c|c as char).collect::<String>(), w.iter().map(|&c|c as char).collect::<String>());
-                    println!(">{}\n{}", tmp.id()?, highlight_match(&fullseq,&w.iter().map(|&c|c as char).collect::<String>() )?);
+                    foundpatterns.push(w.iter().map(|&c|c as char).collect::<String>());
+                    //println!("\t{}\nMATCH\t{}", search.iter().map(|&c|c as char).collect::<String>(), w.iter().map(|&c|c as char).collect::<String>());
+                    //println!(">{}\n{}", tmp.id()?, highlight_match(&fullseq,&w.iter().map(|&c|c as char).collect::<String>() )?);
 
                 }
             }
             if was_found{
-               // println!(">{}", tmp.id()?);
-                //println!("{}", highlight_match(fullseq, ))
+                let assembled = foundpatterns.join("|");
+                //println!("{}\n{}", tmp.id()?,highlight_match(&fullseq, &assembled_pattern)? )
+                println!(">{}", tmp.id()?);
+                println!("{}", highlight_match(&fullseq, &assembled )?);
             }//todo
 
         }
@@ -285,7 +290,7 @@ pub fn highlight_match(haystack:&str, needle:&str)->NucGrepResult<String>{
             if &haystack[m.start..m.end].to_uppercase() == &needle.to_uppercase() {
                 haystack[m.start..m.end].color("blue").bold()
             } else {
-                haystack[m.start..m.end].color("orange").bold()
+                haystack[m.start..m.end].color("yellow").bold()
             }
         ));
         offset = m.start + l;
