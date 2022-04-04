@@ -7,7 +7,7 @@ use seq_io::fasta::{Reader, Record};
 use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
-use std::fs::File;
+use std::fs::{read, File};
 use std::io;
 use std::io::BufRead;
 
@@ -35,15 +35,11 @@ struct NucGrepMatch {
     end: usize,
     found: String,
 }
-
-pub fn search_fasta_stdin(
+pub fn search_fasta<T: std::io::Read>(
     config: &Config,
     needle: &Regex,
-    headers_only: bool,
-    search_reverse_complement: bool, //todo rm
-    only_reverse_complement: bool,   //todo rm
+    mut reader: Reader<T>,
 ) -> NucGrepResult<()> {
-    let mut reader = Reader::new(io::stdin());
 
     while let Some(result) = reader.next() {
         let tmp = result?.clone();
@@ -64,10 +60,8 @@ pub fn search_fasta_stdin(
             });
             found.insert(String::from(i.as_str()));
         }
-        let all_found = found.iter().map(String::from).collect::<Vec<String>>();
         let mut offset: usize = 0;
 
-        let mut positions: Vec<usize> = Vec::new();
         let mut result = String::from("");
         for m in &nmatches {
             let l = m.end - m.start;
@@ -91,11 +85,8 @@ pub fn search_fasta_stdin(
             }
         }
     }
-    Ok(())
-}
 
-pub fn green(s: &str) -> ColoredString {
-    format!("{}", s).green().bold()
+    Ok(())
 }
 
 pub fn run(config: Config) -> NucGrepResult<()> {
@@ -107,48 +98,43 @@ pub fn run(config: Config) -> NucGrepResult<()> {
     if !config.only_reverse_complement {
         search_patterns.push(config.needle.clone());
     }
+
+    let pattern = match config.reverse_complement {
+        true => {
+            format!(
+                r"{}{}",
+                reverse_complement(&config.needle, None)?,
+                if !config.only_reverse_complement {
+                    format!("|{}", config.needle)
+                } else {
+                    "".to_string()
+                }
+            )
+        }
+        false => config.needle.clone(),
+    };
+    let needle_regex = match config.ignore_case {
+        true => RegexBuilder::new(&*pattern)
+            .case_insensitive(true)
+            .build()
+            .expect("Invalid Regex"),
+        false => RegexBuilder::new(&*pattern)
+            .case_insensitive(false)
+            .build()
+            .expect("Invalid Regex"),
+    };
+
     if config.file == "-" {
-        let pattern = match config.reverse_complement {
-            true => {
-                format!(
-                    r"{}{}",
-                    reverse_complement(&config.needle, None)?,
-                    if !config.only_reverse_complement {
-                        format!("|{}", config.needle)
-                    } else {
-                        "".to_string()
-                    }
-                )
-            }
-            false => config.needle.clone(),
-        };
-        ///println!("DEBUG: pattern:\t{}", pattern);
-        //let revcomp = reverse_complement(&config.needle, None)?;
-        let needle_regex = match config.ignore_case {
-            true => RegexBuilder::new(&*pattern) //&*config.needle)
-                .case_insensitive(true)
-                .build()
-                .expect("Invalid Regex"),
-            false => RegexBuilder::new(&*pattern) //config.needle)
-                .case_insensitive(false)
-                .build()
-                .expect("Invalid Regex"),
-        };
-        search_fasta_stdin(
-            &config,
-            &needle_regex,
-            config.headers_only,
-            config.reverse_complement,
-            config.only_reverse_complement,
-        )?; //todo refactor
+        let reader = Reader::new(std::io::stdin());
+        search_fasta(&config, &needle_regex, reader)?
     } else {
-        let reader = open(&config.file);
+        let reader = Reader::from_path(&config.file);
         match reader {
             Err(e) => {
                 eprintln!("{}: {}", config.file, e);
                 std::process::exit(1)
             }
-            Ok(file) => search(file)?,
+            Ok(reader) => search_fasta(&config, &needle_regex, reader)?,
         }
     }
     Ok(())
