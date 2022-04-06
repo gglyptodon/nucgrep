@@ -1,10 +1,9 @@
 extern crate core;
 
-use clap::ErrorKind::InvalidValue;
 use clap::{Arg, Command};
 use colored::{ColoredString, Colorize};
 use regex::{Regex, RegexBuilder};
-use seq_io::fasta::{Reader, Record};
+use seq_io::fasta::{Reader, Record, RefRecord};
 use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
@@ -45,7 +44,32 @@ pub fn search_fasta<T: std::io::Read>(
             .map(|&x| x as char)
             .filter(|c| !c.is_whitespace())
             .collect::<String>();
+
+        //refactor
+        if config.allow_non_matching == 0 {
+            let res = search_nonfuzzy(&fullseq, &needle, &config);
+            if res.is_some() {
+                if config.headers_only {
+                    println!(">{}", tmp.id()?)
+                } else {
+                    println!("{}{}", format!(">{}\n", tmp.id()?), res.unwrap())
+                }
+            }
+        }
         // fuzzy matching  //
+        else {
+            let res = search_fuzzy(&tmp, &config);
+            if res.is_ok() {
+                if let Some(result) = res? {
+                    if config.headers_only {
+                        println!(">{}", tmp.id()?)
+                    } else {
+                        println!("{}{}", format!(">{}\n", tmp.id()?), result)
+                    }
+                }
+            }
+        }
+        /*
         if config.allow_non_matching > 0 {
             let windows_size = config.needle.len(); //todo: ending?
             let search: Vec<u8> = if config.only_reverse_complement {
@@ -78,22 +102,10 @@ pub fn search_fasta<T: std::io::Read>(
                 println!(">{}", tmp.id()?);
                 println!("{}", highlight_match(&fullseq, &assembled)?);
             } //todo
-        }
+        }*/
 
         // --- //
-
-        //refactor
-
-        let res = search_nonfuzzy(&fullseq, &needle, &config);
-        if res.is_some(){
-            if config.headers_only{
-               println!(">{}",tmp.id()?)
-            }else{
-            println!("{}{}",format!(">{}\n",tmp.id()?), res.unwrap())
-            }
-        };
     }
-
     Ok(())
 }
 
@@ -392,7 +404,108 @@ pub fn reverse_complement(
     }
 }
 
-pub fn search_nonfuzzy(haystack: &String, needle: &Regex, config: &Config) ->Option<String>{
+pub fn search_fuzzy(record: &RefRecord, config: &Config) -> NucGrepResult<Option<String>> {
+    let mut result = String::new();
+    let windows_size = config.needle.len(); //todo: ending?
+                                            //let mut revcomp_needle = None;
+    let fullseq = record
+        .seq()
+        .iter()
+        .map(|&x| x as char)
+        .filter(|c| !c.is_whitespace())
+        .collect::<String>(); //rm whitespace
+
+    let revcomp_needle = Some(reverse_complement(&*config.needle, None)?);
+    let searchpattern_forward = config.needle.chars().map(|c| c as u8).collect::<Vec<u8>>();
+    let searchpattern_revcomp = revcomp_needle
+        .unwrap()
+        .chars()
+        .map(|c| c as u8)
+        .collect::<Vec<u8>>();
+    let mut was_found = false;
+    let mut foundpatterns: Vec<String> = Vec::new();
+
+    if config.reverse_complement {
+        foundpatterns = Vec::new();
+        result = String::new();
+        // search for both
+        for w in fullseq
+            .chars()
+            .map(|c| c as u8)
+            .collect::<Vec<u8>>()
+            .windows(windows_size)
+        {
+            //todo
+            if generic_levenshtein::distance(w, &searchpattern_forward[..])
+                <= config.allow_non_matching
+            {
+                was_found = true;
+                foundpatterns.push(w.iter().map(|&c| c as char).collect::<String>());
+            }
+            if generic_levenshtein::distance(w, &searchpattern_revcomp[..])
+                <= config.allow_non_matching
+            {
+                was_found = true;
+                foundpatterns.push(w.iter().map(|&c| c as char).collect::<String>());
+            }
+        }
+        if was_found {
+            let assembled = foundpatterns.join("|");
+            result.push_str(&*format!("{}", highlight_match(&fullseq, &assembled)?));
+        } //todo
+    }
+
+    if config.only_reverse_complement {
+        foundpatterns = Vec::new();
+        result = String::new();
+        for w in fullseq
+            .chars()
+            .map(|c| c as u8)
+            .collect::<Vec<u8>>()
+            .windows(windows_size)
+        {
+            //todo
+            if generic_levenshtein::distance(w, &searchpattern_revcomp[..])
+                <= config.allow_non_matching
+            {
+                was_found = true;
+                foundpatterns.push(w.iter().map(|&c| c as char).collect::<String>());
+            }
+        }
+        if was_found {
+            let assembled = foundpatterns.join("|");
+            result.push_str(&*format!("{}", highlight_match(&fullseq, &assembled)?));
+        } //todo
+    }
+
+    //only forward
+    if !config.reverse_complement {
+        foundpatterns = Vec::new();
+        result = String::new();
+        for w in fullseq
+            .chars()
+            .map(|c| c as u8)
+            .collect::<Vec<u8>>()
+            .windows(windows_size)
+        {
+            //todo
+            if generic_levenshtein::distance(w, &searchpattern_forward[..])
+                <= config.allow_non_matching
+            {
+                was_found = true;
+                foundpatterns.push(w.iter().map(|&c| c as char).collect::<String>());
+            }
+        }
+        if was_found {
+            let assembled = foundpatterns.join("|");
+            result.push_str(&*format!("{}", highlight_match(&fullseq, &assembled)?));
+        } //todo
+    }
+
+    Ok(Some(result))
+}
+
+pub fn search_nonfuzzy(haystack: &String, needle: &Regex, config: &Config) -> Option<String> {
     let mut result = String::new();
     let mut display_seq = haystack.clone();
     let mut nmatches: Vec<NucGrepMatch> = Vec::new();
@@ -406,8 +519,8 @@ pub fn search_nonfuzzy(haystack: &String, needle: &Regex, config: &Config) ->Opt
         });
         found.insert(String::from(i.as_str()));
     }
-    if found.is_empty(){
-        return None
+    if found.is_empty() {
+        return None;
     }
 
     let mut offset: usize = 0;
@@ -428,15 +541,6 @@ pub fn search_nonfuzzy(haystack: &String, needle: &Regex, config: &Config) ->Opt
 
     Some(result)
 }
-
-
-
-
-
-
-
-
-
 
 mod tests {
     use crate::{reverse_complement, NucleotideComplementError};
