@@ -81,41 +81,17 @@ pub fn search_fasta<T: std::io::Read>(
         }
 
         // --- //
-        let mut display_seq = fullseq.clone();
-        let mut nmatches: Vec<NucGrepMatch> = Vec::new();
-        let mut found = HashSet::new();
-        for i in needle.find_iter(&*fullseq) {
-            nmatches.push(NucGrepMatch {
-                start: i.start(),
-                end: i.end(),
-                found: String::from(i.as_str()),
-            });
-            found.insert(String::from(i.as_str()));
-        }
-        let mut offset: usize = 0;
 
-        let mut result = String::from("");
-        for m in &nmatches {
-            let l = m.end - m.start;
-            result.push_str(&*format!(
-                "{}{}",
-                &display_seq[offset..m.start],
-                if &fullseq[m.start..m.end].to_uppercase() == &config.needle.to_uppercase() {
-                    fullseq[m.start..m.end].color("green").bold()
-                } else {
-                    fullseq[m.start..m.end].color("purple").bold()
-                }
-            ));
-            offset = m.start + l;
-        }
-        result.push_str(&fullseq[offset..]);
-        if !nmatches.is_empty() {
-            println!(">{}", tmp.id()?);
-            if !config.headers_only {
-                println!("{}", result);
-            } else {
+        //refactor
+
+        let res = search_nonfuzzy(&fullseq, &needle, &config);
+        if res.is_some(){
+            if config.headers_only{
+               println!(">{}",tmp.id()?)
+            }else{
+            println!("{}{}",format!(">{}\n",tmp.id()?), res.unwrap())
             }
-        }
+        };
     }
 
     Ok(())
@@ -416,7 +392,7 @@ pub fn reverse_complement(
     }
 }
 
-pub fn search_nonfuzzy(haystack: &String, needle:Regex, config: &Config ) ->String{
+pub fn search_nonfuzzy(haystack: &String, needle: &Regex, config: &Config) ->Option<String>{
     let mut result = String::new();
     let mut display_seq = haystack.clone();
     let mut nmatches: Vec<NucGrepMatch> = Vec::new();
@@ -430,9 +406,11 @@ pub fn search_nonfuzzy(haystack: &String, needle:Regex, config: &Config ) ->Stri
         });
         found.insert(String::from(i.as_str()));
     }
-    let mut offset: usize = 0;
+    if found.is_empty(){
+        return None
+    }
 
-    //let mut result = String::from("");
+    let mut offset: usize = 0;
     for m in &nmatches {
         let l = m.end - m.start;
         result.push_str(&*format!(
@@ -447,14 +425,8 @@ pub fn search_nonfuzzy(haystack: &String, needle:Regex, config: &Config ) ->Stri
         offset = m.start + l;
     }
     result.push_str(&haystack[offset..]);
-    if !nmatches.is_empty() {
-        //println!(">{}", tmp.id()?);
-       // return
-       //     if !config.headers_only {
-       //         println!("{}", result);
-       //     } else {}
-    }
-    result
+
+    Some(result)
 }
 
 
