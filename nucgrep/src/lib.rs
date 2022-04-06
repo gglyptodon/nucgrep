@@ -26,10 +26,6 @@ pub struct Config {
     headers_only: bool,
 }
 
-pub fn search(buff: impl BufRead) -> NucGrepResult<()> {
-    Ok(())
-}
-
 #[derive(Debug)]
 struct NucGrepMatch {
     start: usize,
@@ -51,12 +47,21 @@ pub fn search_fasta<T: std::io::Read>(
             .collect::<String>();
         // fuzzy matching  //
         if config.allow_non_matching > 0 {
+            let windows_size = config.needle.len(); //todo: ending?
+            let search: Vec<u8> = if config.only_reverse_complement {
+                reverse_complement(&*config.needle, None)?
+                    .chars()
+                    .map(|c| c as u8)
+                    .collect()
+            } else {
+                config.needle.chars().map(|c| c as u8).collect()
+            };
             println!(
-                "Under construction!\nallow {} nonmatching. pattern: {}",
-                config.allow_non_matching, config.needle
+                "WARNING:\tUnder construction!\n\t\tallow {} nonmatching. pattern: {}",
+                config.allow_non_matching,
+                String::from_utf8(search.clone())?
             );
-            let windows_size = config.needle.len();
-            let search: Vec<u8> = config.needle.chars().map(|c| c as u8).collect();
+
             let mut was_found = false;
             let mut foundpatterns: Vec<String> = Vec::new();
             // vec of found patterns -> new regex highlight(fullseq,newregex)
@@ -65,8 +70,6 @@ pub fn search_fasta<T: std::io::Read>(
                 if generic_levenshtein::distance(w, &search[..]) <= config.allow_non_matching {
                     was_found = true;
                     foundpatterns.push(w.iter().map(|&c| c as char).collect::<String>());
-                    //println!("\t{}\nMATCH\t{}", search.iter().map(|&c|c as char).collect::<String>(), w.iter().map(|&c|c as char).collect::<String>());
-                    //println!(">{}\n{}", tmp.id()?, highlight_match(&fullseq,&w.iter().map(|&c|c as char).collect::<String>() )?);
                 }
             }
             if was_found {
@@ -174,7 +177,10 @@ struct InvalidValueNonMatchingAllowedLargerEqualPattern;
 
 impl Display for InvalidValueNonMatchingAllowedLargerEqualPattern {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "number of allowed mismatches is longer than or as long as pattern")
+        write!(
+            f,
+            "number of allowed mismatches is longer than or as long as pattern"
+        )
     }
 }
 
@@ -409,6 +415,56 @@ pub fn reverse_complement(
         Ok(rev)
     }
 }
+
+pub fn search_nonfuzzy(haystack: &String, needle:Regex, config: &Config ) ->String{
+    let mut result = String::new();
+    let mut display_seq = haystack.clone();
+    let mut nmatches: Vec<NucGrepMatch> = Vec::new();
+    let mut found = HashSet::new();
+
+    for i in needle.find_iter(&*haystack) {
+        nmatches.push(NucGrepMatch {
+            start: i.start(),
+            end: i.end(),
+            found: String::from(i.as_str()),
+        });
+        found.insert(String::from(i.as_str()));
+    }
+    let mut offset: usize = 0;
+
+    //let mut result = String::from("");
+    for m in &nmatches {
+        let l = m.end - m.start;
+        result.push_str(&*format!(
+            "{}{}",
+            &display_seq[offset..m.start],
+            if &haystack[m.start..m.end].to_uppercase() == &config.needle.to_uppercase() {
+                haystack[m.start..m.end].color("green").bold()
+            } else {
+                haystack[m.start..m.end].color("purple").bold()
+            }
+        ));
+        offset = m.start + l;
+    }
+    result.push_str(&haystack[offset..]);
+    if !nmatches.is_empty() {
+        //println!(">{}", tmp.id()?);
+       // return
+       //     if !config.headers_only {
+       //         println!("{}", result);
+       //     } else {}
+    }
+    result
+}
+
+
+
+
+
+
+
+
+
 
 mod tests {
     use crate::{reverse_complement, NucleotideComplementError};
