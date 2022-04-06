@@ -146,6 +146,36 @@ fn dies_invalid_num_mismatch_args_stdin() -> TestResult {
         .stderr(predicate::str::is_match(expected)?);
     Ok(())
 }
+#[test]
+fn dies_allowed_mismatch_greater_pattern_length_args_stdin() -> TestResult {
+    let input = fs::read_to_string(FASTA_ONE_RECORD_PER_LINE)?;
+    let expected = format!("Error number of allowed mismatches is longer than or as long as pattern");
+    Command::cargo_bin(PRG)?
+        .write_stdin(input)
+        .arg("--pattern")
+        .arg("ATG")
+        .arg("--allow-non-matching")
+        .arg("4")
+        .assert()
+        .failure()
+        .stderr(predicate::str::is_match(expected)?);
+    Ok(())
+}
+#[test]
+fn dies_allowed_mismatch_equal_pattern_length_args_stdin() -> TestResult {
+    let input = fs::read_to_string(FASTA_ONE_RECORD_PER_LINE)?;
+    let expected = format!("Error number of allowed mismatches is longer than or as long as pattern");
+    Command::cargo_bin(PRG)?
+        .write_stdin(input)
+        .arg("--pattern")
+        .arg("ATG")
+        .arg("--allow-non-matching")
+        .arg("3")
+        .assert()
+        .failure()
+        .stderr(predicate::str::is_match(expected)?);
+    Ok(())
+}
 
 #[test]
 fn empty_stdin() -> TestResult {

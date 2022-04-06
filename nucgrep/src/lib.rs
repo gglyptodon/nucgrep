@@ -1,12 +1,13 @@
 extern crate core;
 
+use clap::ErrorKind::InvalidValue;
 use clap::{Arg, Command};
 use colored::{ColoredString, Colorize};
 use regex::{Regex, RegexBuilder};
 use seq_io::fasta::{Reader, Record};
 use std::collections::HashSet;
 use std::error::Error;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::fs::{read, File};
 use std::io;
 use std::io::BufRead;
@@ -40,7 +41,6 @@ pub fn search_fasta<T: std::io::Read>(
     needle: &Regex,
     mut reader: Reader<T>,
 ) -> NucGrepResult<()> {
-
     while let Some(result) = reader.next() {
         let tmp = result?.clone();
         let fullseq = tmp
@@ -50,29 +50,31 @@ pub fn search_fasta<T: std::io::Read>(
             .filter(|c| !c.is_whitespace())
             .collect::<String>();
         // fuzzy matching  //
-        if config.allow_non_matching > 0{
-            println!("Under construction!\nallow {} nonmatching. pattern: {}", config.allow_non_matching, config.needle);
+        if config.allow_non_matching > 0 {
+            println!(
+                "Under construction!\nallow {} nonmatching. pattern: {}",
+                config.allow_non_matching, config.needle
+            );
             let windows_size = config.needle.len();
-            let search:Vec<u8> = config.needle.chars().map(|c| c as u8).collect();
+            let search: Vec<u8> = config.needle.chars().map(|c| c as u8).collect();
             let mut was_found = false;
-            let mut foundpatterns:Vec<String> = Vec::new();
+            let mut foundpatterns: Vec<String> = Vec::new();
             // vec of found patterns -> new regex highlight(fullseq,newregex)
-            for w in tmp.clone().full_seq().windows(windows_size){ //todo
-                if generic_levenshtein::distance(w, &search[..]) <= config.allow_non_matching{
+            for w in tmp.clone().full_seq().windows(windows_size) {
+                //todo
+                if generic_levenshtein::distance(w, &search[..]) <= config.allow_non_matching {
                     was_found = true;
-                    foundpatterns.push(w.iter().map(|&c|c as char).collect::<String>());
+                    foundpatterns.push(w.iter().map(|&c| c as char).collect::<String>());
                     //println!("\t{}\nMATCH\t{}", search.iter().map(|&c|c as char).collect::<String>(), w.iter().map(|&c|c as char).collect::<String>());
                     //println!(">{}\n{}", tmp.id()?, highlight_match(&fullseq,&w.iter().map(|&c|c as char).collect::<String>() )?);
-
                 }
             }
-            if was_found{
+            if was_found {
                 let assembled = foundpatterns.join("|");
                 //println!("{}\n{}", tmp.id()?,highlight_match(&fullseq, &assembled_pattern)? )
                 println!(">{}", tmp.id()?);
-                println!("{}", highlight_match(&fullseq, &assembled )?);
-            }//todo
-
+                println!("{}", highlight_match(&fullseq, &assembled)?);
+            } //todo
         }
 
         // --- //
@@ -167,12 +169,22 @@ pub fn run(config: Config) -> NucGrepResult<()> {
     Ok(())
 }
 
+#[derive(Debug)]
+struct InvalidValueNonMatchingAllowedLargerEqualPattern;
+
+impl Display for InvalidValueNonMatchingAllowedLargerEqualPattern {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "number of allowed mismatches is longer than or as long as pattern")
+    }
+}
+
+impl Error for InvalidValueNonMatchingAllowedLargerEqualPattern {}
+
 pub fn parse_args() -> NucGrepResult<Config> {
     let matches = Command::new("nucgrep")
         .version("0.0.1")
         .about(
-            "Find sequences in sequences.\n\
-   By default, look for PATTERN in each fasta record in FILE. If no file is specified, use STDIN.\n\n\t -- under construction --",
+            "Find sequences in sequences.\nBy default, look for PATTERN in each fasta record in FILE. If no file is specified, use STDIN.\n\n\t -- under construction --",
         )
         .arg(
             Arg::new("needle")
@@ -206,7 +218,7 @@ pub fn parse_args() -> NucGrepResult<Config> {
                 .required(false)
                 .value_name("N")
                 .default_value("0")
-                .help("Maximum number of allowed non matching characters"),
+                .help("Maximum number of allowed non-matching characters"),
         )
         .arg(
             Arg::new("only_reverse_complement")
@@ -223,6 +235,24 @@ pub fn parse_args() -> NucGrepResult<Config> {
         )
         .arg(Arg::new("headers_only").long("--headers-only").short('H').help("Only show headers for records that match").takes_value(false))
         .get_matches();
+
+    let number_non_matching_allowed = matches
+        .value_of("allow_non_matching")
+        .unwrap()
+        .parse::<usize>()
+        .map_err(|e| {
+            eprintln!(
+                "{}\n{}",
+                e, "\nHint: --allow-non-matching takes a number as argument"
+            );
+            std::process::exit(2)
+        })
+        .unwrap();
+    let pattern_length = matches.value_of("needle").map(String::from).unwrap().len();
+    if pattern_length <= number_non_matching_allowed {
+        return Err(Box::new(InvalidValueNonMatchingAllowedLargerEqualPattern));
+    }
+
     Ok(Config {
         fasta: true, //matches.is_present("fasta"),
         needle: matches.value_of("needle").map(String::from).unwrap(),
@@ -263,7 +293,7 @@ impl Display for NucleotideComplementError {
     }
 }
 
-pub fn highlight_match(haystack:&str, needle:&str)->NucGrepResult<String>{
+pub fn highlight_match(haystack: &str, needle: &str) -> NucGrepResult<String> {
     //let result = String::new();
     let needle_regex = RegexBuilder::new(needle).case_insensitive(true).build()?;
     let mut display_seq = haystack.clone();
@@ -297,10 +327,8 @@ pub fn highlight_match(haystack:&str, needle:&str)->NucGrepResult<String>{
     }
     result.push_str(&haystack[offset..]);
 
-
     Ok(result)
 }
-
 
 impl Error for NucleotideComplementError {}
 
@@ -483,17 +511,17 @@ mod tests {
     }
 
     #[test]
-    pub fn lev(){
+    pub fn lev() {
         let input = "atgcta";
         let needle = "tcta";
-        let n:Vec<char> = needle.chars().collect();
+        let n: Vec<char> = needle.chars().collect();
         let tmp = input.chars().collect::<Vec<char>>();
-        for t in tmp.windows(needle.len()){
-            let dist =generic_levenshtein::distance(t,&n ) ;
-            if dist < 2{
+        for t in tmp.windows(needle.len()) {
+            let dist = generic_levenshtein::distance(t, &n);
+            if dist < 2 {
                 println!("{:?} matches {:?}", &t, &n);
             }
         }
-      //  assert_eq!("a","b");//fail on purpose for debugging
+        //  assert_eq!("a","b");//fail on purpose for debugging
     }
 }
