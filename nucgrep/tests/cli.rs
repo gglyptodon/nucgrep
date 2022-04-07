@@ -21,7 +21,8 @@ const FASTA_SIMPLE_OUT_HEADERS_ONLY: &str = "tests/expected/simple.fa.headers_on
 
 const FASTA_SIMPLE_OUT_REV_COMP: &str = "tests/expected/simple.fa.reverse_complement.out";
 
-const FASTA_SIMPLE_OUT_REV_COMP_HEADERS_ONLY: &str= "tests/expected/simple.fa.headers_only_reverse_complement.out";
+const FASTA_SIMPLE_OUT_REV_COMP_HEADERS_ONLY: &str =
+    "tests/expected/simple.fa.headers_only_reverse_complement.out";
 
 const FASTA_ONE_RECORD_PER_LINE_OUT: &str = "tests/expected/fasta_one_record_per_line.fa.out";
 const FASTA_WITH_LINEBREAKS_OUT: &str = "tests/expected/fasta_with_line_breaks.fa.out";
@@ -83,13 +84,9 @@ fn simple() -> TestResult {
     run(&[FASTA_SIMPLE, "--pattern", "ATG"], FASTA_SIMPLE_OUT)
 }
 
-
 #[test]
 fn simple_reverse_complement_no_args() -> TestResult {
-    run(
-        &[FASTA_SIMPLE, "--pattern", "CAT"],
-        EMPTY,
-    )
+    run(&[FASTA_SIMPLE, "--pattern", "CAT"], EMPTY)
 }
 #[test]
 fn simple_reverse_complement_arg_R() -> TestResult {
@@ -191,26 +188,19 @@ fn dies_allowed_mismatch_equal_pattern_length_args_stdin() -> TestResult {
 
 #[test]
 fn empty_stdin() -> TestResult {
-    run_stdin(
-        &["--pattern", "ATG"],
-        EMPTY,
-        EMPTY,
-    )
+    run_stdin(&["--pattern", "ATG"], EMPTY, EMPTY)
 }
 
 #[test]
 fn simple_stdin() -> TestResult {
-    run_stdin(
-        &["--pattern", "ATG"],
-        FASTA_SIMPLE,
-        FASTA_SIMPLE_OUT,
-    )
+    run_stdin(&["--pattern", "ATG"], FASTA_SIMPLE, FASTA_SIMPLE_OUT)
 }
 #[test]
 fn simple_reverse_complement_stdin() -> TestResult {
     run_stdin(
         &["--pattern", "CAT", "--reverse-complement"],
-        FASTA_SIMPLE, FASTA_SIMPLE_OUT_REV_COMP,
+        FASTA_SIMPLE,
+        FASTA_SIMPLE_OUT_REV_COMP,
     )
 }
 #[test]
@@ -258,7 +248,6 @@ fn simple_reverse_complement() -> TestResult {
     )
 }
 
-
 // tests line break
 
 #[test]
@@ -284,8 +273,9 @@ fn input_with_linebreaks_ignore_case() -> TestResult {
         FASTA_WITH_LINEBREAKS_OUT,
     )
 }
-// test ignore case
+
 // test 1 mismatch
+
 // test 1 insertion
 // test 1 deletion
 // test multi mismatches/indels
