@@ -22,6 +22,7 @@ pub struct Config {
     allow_non_matching: usize,
     ignore_case: bool,
     headers_only: bool,
+    linewrap: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -49,6 +50,12 @@ pub fn search_fasta<T: std::io::Read>(
             if res.is_some() {
                 if config.headers_only {
                     println!(">{}", tmp.id()?)
+                } else if config.linewrap.is_some() {
+                    println!(
+                        ">{}\n{}",
+                        tmp.id()?,
+                        textwrap::fill(&*res.unwrap(), config.linewrap.unwrap())
+                    );
                 } else {
                     println!("{}{}", format!(">{}\n", tmp.id()?), res.unwrap())
                 }
@@ -61,6 +68,12 @@ pub fn search_fasta<T: std::io::Read>(
                 if let Some(result) = res? {
                     if config.headers_only {
                         println!(">{}", tmp.id()?)
+                    } else if config.linewrap.is_some() {
+                        println!(
+                            ">{}\n{}",
+                            tmp.id()?,
+                            textwrap::fill(&*result, config.linewrap.unwrap())
+                        );
                     } else {
                         println!("{}{}", format!(">{}\n", tmp.id()?), result)
                     }
@@ -174,7 +187,7 @@ pub fn parse_args() -> NucGrepResult<Config> {
                 .required(false)
                 .value_name("N")
                 .default_value("0")
-                .help("Maximum number of allowed non-matching characters"),
+                .help("Maximum number of allowed non-matching characters (Caution: experimental & slow!)"),
         )
         .arg(
             Arg::new("only_reverse_complement")
@@ -190,6 +203,7 @@ pub fn parse_args() -> NucGrepResult<Config> {
                 .help("Ignore case\nE.g. find match 'aTgA' in FILE for PATTERN 'ATGA' or 'atga' and vice versa"),
         )
         .arg(Arg::new("headers_only").long("--headers-only").short('H').help("Only show headers for records that match").takes_value(false))
+        .arg(Arg::new("wrap_lines").long("--wrap-lines").short('w').help("Wrap output every C characters").takes_value(true).value_name("C").required(false))
         .get_matches();
 
     let number_non_matching_allowed = matches
@@ -208,7 +222,20 @@ pub fn parse_args() -> NucGrepResult<Config> {
     if pattern_length <= number_non_matching_allowed {
         return Err(Box::new(InvalidValueNonMatchingAllowedLargerEqualPattern));
     }
-
+    let wrap = match matches.value_of("wrap_lines") {
+        None => None,
+        Some(num) => Some(
+            num.parse::<usize>()
+                .map_err(|e| {
+                    eprintln!(
+                        "{}\n{}",
+                        e, "\nHint: --wrap-lines takes a number as argument"
+                    );
+                    std::process::exit(2)
+                })
+                .unwrap(),
+        ),
+    };
     Ok(Config {
         fasta: true, //matches.is_present("fasta"),
         needle: matches.value_of("needle").map(String::from).unwrap(),
@@ -230,6 +257,7 @@ pub fn parse_args() -> NucGrepResult<Config> {
             .unwrap(),
         ignore_case: matches.is_present("ignore_case"),
         headers_only: matches.is_present("headers_only"),
+        linewrap: wrap,
     })
 }
 
@@ -389,7 +417,7 @@ pub fn search_fuzzy(record: &RefRecord, config: &Config) -> NucGrepResult<Option
 
     //only forward
     if !config.reverse_complement {
-        for w in fullseq
+        for w in fullseq //mismatches
             .chars()
             .map(|c| c as u8)
             .collect::<Vec<u8>>()
@@ -408,7 +436,6 @@ pub fn search_fuzzy(record: &RefRecord, config: &Config) -> NucGrepResult<Option
             result.push_str(&*format!("{}", highlight_match(&fullseq, &assembled)?));
         } //todo
     }
-
     //only reverse complement
     else if config.only_reverse_complement {
         for w in fullseq
@@ -680,4 +707,122 @@ mod tests {
         assert_eq!(result, expected);
     }
     //todo more tests...
+    #[test]
+    pub fn test_levenshtein_insertion_in_haystack_1() {
+        let maxdist: usize = 1;
+        let expected = true;
+        let mut result = false;
+        let input = "actgt";
+        let needle = "acgt";
+        let n: Vec<char> = needle.chars().collect();
+        let tmp = input.chars().collect::<Vec<char>>();
+        for t in tmp.windows(needle.len() - maxdist) {
+            //deletion in haystack
+            let dist = generic_levenshtein::distance(t, &n);
+            println!("{:?} cmp {:?} -> {:?}", &t, &n, dist);
+            if dist <= maxdist {
+                println!("{:?} matches {:?}", &t, &n);
+                result = true;
+            }
+        }
+        for t in tmp.windows(needle.len() + maxdist) {
+            // insertion in haystack
+            let dist = generic_levenshtein::distance(t, &n);
+            println!("{:?} cmp {:?} -> {:?}", &t, &n, dist);
+            if dist <= maxdist {
+                println!("{:?} matches {:?}", &t, &n);
+                result = true;
+            }
+        }
+        for t in tmp.windows(needle.len()) {
+            // only mismatches
+            let dist = generic_levenshtein::distance(t, &n);
+            println!("{:?} cmp {:?} -> {:?}", &t, &n, dist);
+            if dist <= maxdist {
+                println!("{:?} matches {:?}", &t, &n);
+                result = true;
+            }
+        }
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    pub fn test_levenshtein_insertion_in_haystack_2() {
+        let maxdist: usize = 2;
+        let expected = true;
+        let mut result = false;
+        let input = "acnntgt";
+        let needle = "acgt";
+        let n: Vec<char> = needle.chars().collect();
+        let tmp = input.chars().collect::<Vec<char>>();
+        for t in tmp.windows(needle.len() - maxdist) {
+            //deletion in haystack
+            let dist = generic_levenshtein::distance(t, &n);
+            println!("{:?} cmp {:?} -> {:?}", &t, &n, dist);
+            if dist <= maxdist {
+                println!("{:?} matches {:?}", &t, &n);
+                result = true;
+            }
+        }
+        for t in tmp.windows(needle.len() + maxdist) {
+            // insertion in haystack
+            let dist = generic_levenshtein::distance(t, &n);
+            println!("{:?} cmp {:?} -> {:?}", &t, &n, dist);
+            if dist <= maxdist {
+                println!("{:?} matches {:?}", &t, &n);
+                result = true;
+            }
+        }
+        for t in tmp.windows(needle.len()) {
+            // only mismatches
+            let dist = generic_levenshtein::distance(t, &n);
+            println!("{:?} cmp {:?} -> {:?}", &t, &n, dist);
+            if dist <= maxdist {
+                println!("{:?} matches {:?}", &t, &n);
+                result = true;
+            }
+        }
+        assert_eq!(result, expected);
+    }
+
+    /*
+        #[test]
+        pub fn test_levenshtein_insertion_in_haystack_3() {
+            let maxdist: usize = 3;
+            let expected = true;
+            let mut result = false;
+            let input =  "acnnggtacgt";
+            let needle = "acgtacgt";
+            let n: Vec<char> = needle.chars().collect();
+            let tmp = input.chars().collect::<Vec<char>>();
+            for t in tmp.windows(needle.len()-maxdist) { //deletion in haystack
+                let dist = generic_levenshtein::distance(t, &n);
+                println!("{:?} cmp {:?} -> {:?}", &t, &n, dist);
+                if dist <= maxdist {
+                    println!("{:?} matches {:?}", &t, &n);
+                    result = true;
+                }
+            }
+            for t in tmp.windows(needle.len()+maxdist) { // insertion in haystack
+                let dist = generic_levenshtein::distance(t, &n);
+                println!("{:?} cmp {:?} -> {:?}", &t, &n, dist);
+                if dist <= maxdist {
+                    println!("{:?} matches {:?}", &t, &n);
+                    result = true;
+                }
+            }
+            for t in tmp.windows(needle.len()) { // only mismatches
+                let dist = generic_levenshtein::distance(t, &n);
+                println!("{:?} cmp {:?} -> {:?}", &t, &n, dist);
+                if dist <= maxdist {
+                    println!("{:?} matches {:?}", &t, &n);
+                    result = true;
+                }
+            }
+            assert_eq!(result, expected);
+        }
+
+
+    */
 }
+//todo pretty print

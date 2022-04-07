@@ -10,10 +10,18 @@ const EMPTY: &str = "tests/inputs/empty.txt";
 
 const FASTA_INVALID: &str = "tests/inputs/invalid.fa";
 
+const FASTA_SIMPLE: &str = "tests/inputs/simple.fa";
 const FASTA_ONE_RECORD_PER_LINE: &str = "tests/inputs/fasta_one_record_per_line.fa";
 const FASTA_WITH_LINEBREAKS: &str = "tests/inputs/fasta_with_line_breaks.fa";
 const FASTA_ONE_RECORD_PER_LINE_MC: &str = "tests/inputs/fasta_one_record_per_line_mc.fa"; //mixed case
 const FASTA_REV_ORIG: &str = "tests/inputs/rev_orig.fa";
+
+const FASTA_SIMPLE_OUT: &str = "tests/expected/simple.fa.out";
+const FASTA_SIMPLE_OUT_HEADERS_ONLY: &str = "tests/expected/simple.fa.headers_only.out";
+
+const FASTA_SIMPLE_OUT_REV_COMP: &str = "tests/expected/simple.fa.reverse_complement.out";
+
+const FASTA_SIMPLE_OUT_REV_COMP_HEADERS_ONLY: &str= "tests/expected/simple.fa.headers_only_reverse_complement.out";
 
 const FASTA_ONE_RECORD_PER_LINE_OUT: &str = "tests/expected/fasta_one_record_per_line.fa.out";
 const FASTA_WITH_LINEBREAKS_OUT: &str = "tests/expected/fasta_with_line_breaks.fa.out";
@@ -65,28 +73,32 @@ fn gen_bad_file() -> String {
 }
 // -- read file
 
-/* #[test]
+#[test]
 fn empty() -> TestResult {
-    run(&[EMPTY, "--pattern", "ATG"], "tests/expected/empty.txt.out")
-}*/
-//todo
+    run(&[EMPTY, "--pattern", "ATG"], EMPTY)
+}
 
-/*#[test]
+#[test]
 fn simple() -> TestResult {
-    run(&[EMPTY, "--pattern", "ATG"], "tests/expected/simple.fa.out")
-} */
-//todo
+    run(&[FASTA_SIMPLE, "--pattern", "ATG"], FASTA_SIMPLE_OUT)
+}
 
-/* #[test]
-fn simple_reverse_complement() -> TestResult {
+
+#[test]
+fn simple_reverse_complement_no_args() -> TestResult {
     run(
-        &[EMPTY, "--pattern", "CAT"],
-        "tests/expected/simple.fa.reverse_complement.out",
+        &[FASTA_SIMPLE, "--pattern", "CAT"],
+        EMPTY,
     )
-} */
-//todo
+}
+#[test]
+fn simple_reverse_complement_arg_R() -> TestResult {
+    run(
+        &[FASTA_SIMPLE, "--pattern", "CAT", "-R"],
+        FASTA_SIMPLE_OUT_REV_COMP,
+    )
+}
 
-/*
 #[test]
 fn dies_fasta_invalid_file() -> TestResult {
     let expected = format!("Error FASTA parse error: expected '>'");
@@ -94,13 +106,11 @@ fn dies_fasta_invalid_file() -> TestResult {
         .arg(FASTA_INVALID)
         .arg("--pattern")
         .arg("ATG")
-        .arg("--fasta")
         .assert()
         .failure()
         .stderr(predicate::str::is_match(expected)?);
     Ok(())
-}*/
-//todo
+}
 
 #[test]
 fn dies_bad_file() -> TestResult {
@@ -183,8 +193,8 @@ fn dies_allowed_mismatch_equal_pattern_length_args_stdin() -> TestResult {
 fn empty_stdin() -> TestResult {
     run_stdin(
         &["--pattern", "ATG"],
-        "tests/inputs/empty.txt",
-        "tests/expected/empty.txt.out",
+        EMPTY,
+        EMPTY,
     )
 }
 
@@ -192,32 +202,31 @@ fn empty_stdin() -> TestResult {
 fn simple_stdin() -> TestResult {
     run_stdin(
         &["--pattern", "ATG"],
-        "tests/inputs/simple.fa",
-        "tests/expected/simple.fa.out",
+        FASTA_SIMPLE,
+        FASTA_SIMPLE_OUT,
     )
 }
 #[test]
 fn simple_reverse_complement_stdin() -> TestResult {
     run_stdin(
         &["--pattern", "CAT", "--reverse-complement"],
-        "tests/inputs/simple.fa",
-        "tests/expected/simple.fa_reverse_complement.out",
+        FASTA_SIMPLE, FASTA_SIMPLE_OUT_REV_COMP,
     )
 }
 #[test]
 fn simple_headers_only_stdin() -> TestResult {
     run_stdin(
         &["--pattern", "ATG", "--headers-only"],
-        "tests/inputs/simple.fa",
-        "tests/expected/simple.fa.headers_only.out",
+        FASTA_SIMPLE,
+        FASTA_SIMPLE_OUT_HEADERS_ONLY,
     )
 }
 #[test]
 fn simple_headers_only_reverse_complement_stdin() -> TestResult {
     run_stdin(
         &["--pattern", "CAT", "--headers-only", "--reverse-complement"],
-        "tests/inputs/simple.fa",
-        "tests/expected/simple.fa.headers_only_reverse_complement.out",
+        FASTA_SIMPLE,
+        FASTA_SIMPLE_OUT_REV_COMP_HEADERS_ONLY,
     )
 }
 #[test]
@@ -241,19 +250,42 @@ fn simple_orig_stdin() -> TestResult {
     run_stdin(&["--pattern", "GTAGTAGTAG"], FASTA_REV_ORIG, FASTA_ORIG_OUT)
 }
 
-/* #[test]
+#[test]
 fn simple_reverse_complement() -> TestResult {
     run(
-        &[EMPTY, "--pattern", "CAT"],
-        "tests/expected/simple.fa.reverse_complement.out",
+        &[FASTA_SIMPLE, "--pattern", "CAT", "-R"],
+        FASTA_SIMPLE_OUT_REV_COMP,
     )
-} */
-//todo
+}
+
 
 // tests line break
+
+#[test]
+fn input_with_linebreaks() -> TestResult {
+    run(
+        &[FASTA_WITH_LINEBREAKS, "--pattern", "GCAGACCTT"], //matches across linebreak
+        FASTA_WITH_LINEBREAKS_OUT,
+    )
+}
+
+// ignore case
+#[test]
+fn input_with_linebreaks_no_ignore_case() -> TestResult {
+    run(
+        &[FASTA_WITH_LINEBREAKS, "--pattern", "gcAgAcCtT"], //matches across linebreak
+        EMPTY,
+    )
+}
+#[test]
+fn input_with_linebreaks_ignore_case() -> TestResult {
+    run(
+        &[FASTA_WITH_LINEBREAKS, "--pattern", "gcAgAcCtT", "-i"], //matches across linebreak
+        FASTA_WITH_LINEBREAKS_OUT,
+    )
+}
 // test ignore case
 // test 1 mismatch
 // test 1 insertion
 // test 1 deletion
 // test multi mismatches/indels
-// test fail more mismatches than pattern length
