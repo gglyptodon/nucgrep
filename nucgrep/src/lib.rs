@@ -8,7 +8,6 @@ use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::fs::{read, File};
-use std::io;
 use std::io::BufRead;
 
 pub type NucGrepResult<T> = Result<T, Box<dyn Error>>;
@@ -29,7 +28,6 @@ pub struct Config {
 struct NucGrepMatch {
     start: usize,
     end: usize,
-    found: String,
 }
 pub fn search_fasta<T: std::io::Read>(
     config: &Config,
@@ -69,42 +67,6 @@ pub fn search_fasta<T: std::io::Read>(
                 }
             }
         }
-        /*
-        if config.allow_non_matching > 0 {
-            let windows_size = config.needle.len(); //todo: ending?
-            let search: Vec<u8> = if config.only_reverse_complement {
-                reverse_complement(&*config.needle, None)?
-                    .chars()
-                    .map(|c| c as u8)
-                    .collect()
-            } else {
-                config.needle.chars().map(|c| c as u8).collect()
-            };
-            println!(
-                "WARNING:\tUnder construction!\n\t\tallow {} nonmatching. pattern: {}",
-                config.allow_non_matching,
-                String::from_utf8(search.clone())?
-            );
-
-            let mut was_found = false;
-            let mut foundpatterns: Vec<String> = Vec::new();
-            // vec of found patterns -> new regex highlight(fullseq,newregex)
-            for w in tmp.clone().full_seq().windows(windows_size) {
-                //todo
-                if generic_levenshtein::distance(w, &search[..]) <= config.allow_non_matching {
-                    was_found = true;
-                    foundpatterns.push(w.iter().map(|&c| c as char).collect::<String>());
-                }
-            }
-            if was_found {
-                let assembled = foundpatterns.join("|");
-                //println!("{}\n{}", tmp.id()?,highlight_match(&fullseq, &assembled_pattern)? )
-                println!(">{}", tmp.id()?);
-                println!("{}", highlight_match(&fullseq, &assembled)?);
-            } //todo
-        }*/
-
-        // --- //
     }
     Ok(())
 }
@@ -300,7 +262,6 @@ pub fn highlight_match(haystack: &str, needle: &str) -> NucGrepResult<String> {
         nmatches.push(NucGrepMatch {
             start: i.start(),
             end: i.end(),
-            found: String::from(i.as_str()),
         });
         found.insert(String::from(i.as_str()));
     }
@@ -516,7 +477,6 @@ pub fn search_nonfuzzy(haystack: &String, needle: &Regex, config: &Config) -> Op
         nmatches.push(NucGrepMatch {
             start: i.start(),
             end: i.end(),
-            found: String::from(i.as_str()),
         });
         found.insert(String::from(i.as_str()));
     }
