@@ -149,7 +149,8 @@ fn dies_invalid_num_mismatch_args_stdin() -> TestResult {
 #[test]
 fn dies_allowed_mismatch_greater_pattern_length_args_stdin() -> TestResult {
     let input = fs::read_to_string(FASTA_ONE_RECORD_PER_LINE)?;
-    let expected = format!("Error number of allowed mismatches is longer than or as long as pattern");
+    let expected =
+        format!("Error number of allowed mismatches is longer than or as long as pattern");
     Command::cargo_bin(PRG)?
         .write_stdin(input)
         .arg("--pattern")
@@ -164,7 +165,8 @@ fn dies_allowed_mismatch_greater_pattern_length_args_stdin() -> TestResult {
 #[test]
 fn dies_allowed_mismatch_equal_pattern_length_args_stdin() -> TestResult {
     let input = fs::read_to_string(FASTA_ONE_RECORD_PER_LINE)?;
-    let expected = format!("Error number of allowed mismatches is longer than or as long as pattern");
+    let expected =
+        format!("Error number of allowed mismatches is longer than or as long as pattern");
     Command::cargo_bin(PRG)?
         .write_stdin(input)
         .arg("--pattern")

@@ -405,9 +405,8 @@ pub fn reverse_complement(
 }
 
 pub fn search_fuzzy(record: &RefRecord, config: &Config) -> NucGrepResult<Option<String>> {
-    let mut result = String::new();
-    let windows_size = config.needle.len(); //todo: ending?
-                                            //let mut revcomp_needle = None;
+    let windows_size = config.needle.len() - config.allow_non_matching; //todo: ending? //indels
+
     let fullseq = record
         .seq()
         .iter()
@@ -422,66 +421,13 @@ pub fn search_fuzzy(record: &RefRecord, config: &Config) -> NucGrepResult<Option
         .chars()
         .map(|c| c as u8)
         .collect::<Vec<u8>>();
+    //-----
     let mut was_found = false;
     let mut foundpatterns: Vec<String> = Vec::new();
-
-    if config.reverse_complement {
-        foundpatterns = Vec::new();
-        result = String::new();
-        // search for both
-        for w in fullseq
-            .chars()
-            .map(|c| c as u8)
-            .collect::<Vec<u8>>()
-            .windows(windows_size)
-        {
-            //todo
-            if generic_levenshtein::distance(w, &searchpattern_forward[..])
-                <= config.allow_non_matching
-            {
-                was_found = true;
-                foundpatterns.push(w.iter().map(|&c| c as char).collect::<String>());
-            }
-            if generic_levenshtein::distance(w, &searchpattern_revcomp[..])
-                <= config.allow_non_matching
-            {
-                was_found = true;
-                foundpatterns.push(w.iter().map(|&c| c as char).collect::<String>());
-            }
-        }
-        if was_found {
-            let assembled = foundpatterns.join("|");
-            result.push_str(&*format!("{}", highlight_match(&fullseq, &assembled)?));
-        } //todo
-    }
-
-    if config.only_reverse_complement {
-        foundpatterns = Vec::new();
-        result = String::new();
-        for w in fullseq
-            .chars()
-            .map(|c| c as u8)
-            .collect::<Vec<u8>>()
-            .windows(windows_size)
-        {
-            //todo
-            if generic_levenshtein::distance(w, &searchpattern_revcomp[..])
-                <= config.allow_non_matching
-            {
-                was_found = true;
-                foundpatterns.push(w.iter().map(|&c| c as char).collect::<String>());
-            }
-        }
-        if was_found {
-            let assembled = foundpatterns.join("|");
-            result.push_str(&*format!("{}", highlight_match(&fullseq, &assembled)?));
-        } //todo
-    }
+    let mut result = String::new();
 
     //only forward
     if !config.reverse_complement {
-        foundpatterns = Vec::new();
-        result = String::new();
         for w in fullseq
             .chars()
             .map(|c| c as u8)
@@ -500,6 +446,61 @@ pub fn search_fuzzy(record: &RefRecord, config: &Config) -> NucGrepResult<Option
             let assembled = foundpatterns.join("|");
             result.push_str(&*format!("{}", highlight_match(&fullseq, &assembled)?));
         } //todo
+    }
+
+    //only reverse complement
+    else if config.only_reverse_complement {
+        for w in fullseq
+            .chars()
+            .map(|c| c as u8)
+            .collect::<Vec<u8>>()
+            .windows(windows_size)
+        {
+            //todo
+            if generic_levenshtein::distance(w, &searchpattern_revcomp[..])
+                <= config.allow_non_matching
+            {
+                was_found = true;
+                foundpatterns.push(w.iter().map(|&c| c as char).collect::<String>());
+            }
+        }
+        if was_found {
+            let assembled = foundpatterns.join("|");
+            result.push_str(&*format!("{}", highlight_match(&fullseq, &assembled)?));
+        } //todo
+    }
+    //both
+    else {
+        if config.reverse_complement {
+            foundpatterns = Vec::new();
+            result = String::new();
+
+            // search for both
+            for w in fullseq
+                .chars()
+                .map(|c| c as u8)
+                .collect::<Vec<u8>>()
+                .windows(windows_size)
+            {
+                //todo
+                if generic_levenshtein::distance(w, &searchpattern_forward[..])
+                    <= config.allow_non_matching
+                {
+                    was_found = true;
+                    foundpatterns.push(w.iter().map(|&c| c as char).collect::<String>());
+                }
+                if generic_levenshtein::distance(w, &searchpattern_revcomp[..])
+                    <= config.allow_non_matching
+                {
+                    was_found = true;
+                    foundpatterns.push(w.iter().map(|&c| c as char).collect::<String>());
+                }
+            }
+            if was_found {
+                let assembled = foundpatterns.join("|");
+                result.push_str(&*format!("{}", highlight_match(&fullseq, &assembled)?));
+            } //todo
+        }
     }
 
     Ok(Some(result))
@@ -643,17 +644,80 @@ mod tests {
     }
 
     #[test]
-    pub fn lev() {
+    pub fn test_levenshtein_one_mismatch() {
+        let maxdist: usize = 3;
+        let expected = true;
+        let mut result = false;
         let input = "atgcta";
         let needle = "tcta";
         let n: Vec<char> = needle.chars().collect();
         let tmp = input.chars().collect::<Vec<char>>();
-        for t in tmp.windows(needle.len()) {
+        for t in tmp.windows(needle.len() - maxdist) {
             let dist = generic_levenshtein::distance(t, &n);
-            if dist < 2 {
+            if dist <= maxdist {
                 println!("{:?} matches {:?}", &t, &n);
+                result = true;
             }
         }
-        //  assert_eq!("a","b");//fail on purpose for debugging
+        assert_eq!(result, expected);
     }
+
+    #[test] //todo
+    pub fn test_levenshtein_one_deletion_in_haystack_short() {
+        let maxdist: usize = 1;
+        let expected = true;
+        let mut result = false;
+        let input = "atgta";
+        let needle = "gcta";
+        let n: Vec<char> = needle.chars().collect();
+        let tmp = input.chars().collect::<Vec<char>>();
+        for t in tmp.windows(needle.len() - maxdist) {
+            let dist = generic_levenshtein::distance(t, &n);
+            if dist <= maxdist {
+                println!("{:?} matches {:?}", &t, &n);
+                result = true;
+            }
+        }
+        assert_eq!(result, expected);
+    }
+
+    #[test] //todo
+    pub fn test_levenshtein_one_deletion_in_haystack_short_dist_3() {
+        let maxdist: usize = 3;
+        let expected = true;
+        let mut result = false;
+        let input = "atgtaaaaaaatangagtttagactagnatag";
+        let needle = "atgtaaaaaaaaaat";
+        let n: Vec<char> = needle.chars().collect();
+        let tmp = input.chars().collect::<Vec<char>>();
+        for t in tmp.windows(needle.len() - maxdist) {
+            let dist = generic_levenshtein::distance(t, &n);
+            if dist <= maxdist {
+                println!("{:?} matches {:?}", &t, &n);
+                result = true;
+            }
+        }
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    pub fn test_levenshtein_one_insertion_in_haystack() {
+        let maxdist: usize = 3;
+        let expected = true;
+        let mut result = false;
+        let input = "atgctaatgatgatg";
+        let needle = "tcta";
+        let n: Vec<char> = needle.chars().collect();
+        let tmp = input.chars().collect::<Vec<char>>();
+        for t in tmp.windows(needle.len() - maxdist) {
+            let dist = generic_levenshtein::distance(t, &n);
+            println!("{:?} cmp {:?} -> {:?}", &t, &n, dist);
+            if dist <= maxdist {
+                println!("{:?} matches {:?}", &t, &n);
+                result = true;
+            }
+        }
+        assert_eq!(result, expected);
+    }
+    //todo more tests...
 }
