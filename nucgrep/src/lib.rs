@@ -1,3 +1,5 @@
+pub mod search_fasta;
+
 extern crate core;
 
 use clap::{Arg, Command};
@@ -63,20 +65,23 @@ pub fn search_fasta<T: std::io::Read>(
         }
         // fuzzy matching  //
         else {
-            let res = search_fuzzy(&tmp, &config);
+            let res = crate::search_fasta::align_sw(&tmp, &config);
             if res.is_ok() {
                 if let Some(result) = res? {
-
                     if config.headers_only {
-                        if !result.is_empty(){println!(">{}", tmp.id()?)}
+                        if !result.is_empty() {
+                            println!(">{}", tmp.id()?)
+                        }
                     } else if config.linewrap.is_some() && !result.is_empty() {
                         println!(
                             ">{}\n{}",
                             tmp.id()?,
                             textwrap::fill(&*result, config.linewrap.unwrap())
                         );
-                    } else {if !result.is_empty(){
-                        println!("{}{}", format!(">{}\n", tmp.id()?), result)}
+                    } else {
+                        if !result.is_empty() {
+                            println!("{}{}", format!(">{}\n", tmp.id()?), result)
+                        }
                     }
                 }
             }
