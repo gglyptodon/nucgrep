@@ -63,9 +63,10 @@ pub fn search_fasta<T: std::io::Read>(
                 }
             }
         }
-        // fuzzy matching  //
+        // fuzzy matching  // under construction
         else {
-            let res = crate::search_fasta::align_sw(&tmp, &config);
+            let res = crate::search_fasta::align_new(&tmp, &config);
+
             if res.is_ok() {
                 if let Some(result) = res? {
                     if config.headers_only {
